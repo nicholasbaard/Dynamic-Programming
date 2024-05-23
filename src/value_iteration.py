@@ -7,7 +7,7 @@ import argparse
 
 from utils import save_heatmap, save_policy, run_policy
 
-class PolicyIteration:
+class ValueIteration:
     def __init__(self, env:gym.Env, theta:float=0.001, gamma:float=0.99):
 
         self.theta = theta
@@ -25,20 +25,21 @@ class PolicyIteration:
         while delta > self.theta:
             delta = 0
             for state in range(self.n_states):
-                    v = 0
+                    v = np.ones(self.n_actions) * -np.inf
 
                     for action in range(self.n_actions):
                         transitions_list = env.P[state][action]
                         
                         for i in transitions_list:
                             transition_prob, next_state, reward, done = i
-                            v += self.policy[state, action]*transition_prob*(reward + self.gamma*self.V[next_state])
+                            v[action] = self.policy[state, action]*transition_prob*(reward + self.gamma*self.V[next_state])
 
+                    v = max(v)
                     delta = max(delta, abs(self.V[state] - v))
                     self.V[state] = v
 
     
-    def improve_policy(self):
+    def determine_policy(self):
         qvalues_matrix=np.zeros((self.n_states,self.n_actions))
         improved_policy=np.zeros((self.n_states,self.n_actions))
 
@@ -56,21 +57,9 @@ class PolicyIteration:
         self.policy = improved_policy
 
 
-    def policy_iteration(self, max_iterations:int=10):
-
-        for i in tqdm(range(max_iterations), desc="Policy Iteration"):
-
-            if i == 0:
-                current_policy=self.policy.copy()
-
-            self.evaluate_policy()
-            self.improve_policy()
-
-            # TODO: Check if policy has converged
-            if np.array_equal(current_policy, self.policy):
-                current_policy=self.policy.copy()
-                break
-            current_policy=self.policy.copy()
+    def value_iteration(self):
+        self.evaluate_policy()
+        self.determine_policy()
 
             
 
@@ -84,27 +73,26 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--show_policy', action='store_true', help='Show policy')
-    parser.add_argument('--max_iterations', type=int, default=10, help='Maximum number of iterations for policy iteration')
     args = parser.parse_args()
 
     show_policy = args.show_policy
-    max_iterations = args.max_iterations
+
 
     rows = 4
     cols = 4
     env = gym.make('FrozenLake-v1', desc=None, map_name="4x4", is_slippery=False, render_mode="human")
     
-    policy = PolicyIteration(env=env)
+    policy = ValueIteration(env=env)
 
     print("Initial Policy:\n", policy.policy, "\n")
     print('Transition Matrix:\n')
     pp.pprint(policy.P)
 
-    policy.policy_iteration(max_iterations=max_iterations)
+    policy.value_iteration()
 
-    save_heatmap(policy.V.reshape(rows, cols),"policy_iteration_value_function.png")
-    save_policy(policy.policy,"policy_iteration_policy.png", rows, cols)
-    
+    save_heatmap(policy.V.reshape(rows, cols),"value_iteration_value_function.png")
+    save_policy(policy.policy,"value_iteration_policy.png", rows, cols)
+
     print("Final Value array:\n", policy.V.reshape(rows, cols), "\n")
     print("Final Policy:\n", policy.policy, "\n")
 
